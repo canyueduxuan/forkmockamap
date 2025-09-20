@@ -1,4 +1,4 @@
-# add an random-generating forest
+# add a randomly generated forest
 
 ![Alt text](https://github.com/canyueduxuan/mockamap/blob/my_fix/images/fe9064bb5e611c7d6b8137dfbd234d00.jpg)
 
