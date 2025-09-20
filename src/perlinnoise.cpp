@@ -60,7 +60,7 @@ PerlinNoise::PerlinNoise(unsigned int seed)
 }
 
 double
-PerlinNoise::noise(double x, double y, double z)
+PerlinNoise::noise3d(double x, double y, double z)
 {
   // Find the unit cube that contains the point
   int X = (int)floor(x) & 255;
@@ -89,16 +89,44 @@ PerlinNoise::noise(double x, double y, double z)
   double res =
     lerp(w,      //
          lerp(v, //
-              lerp(u, grad(p[AA], x, y, z), grad(p[BA], x - 1, y, z)),
-              lerp(u, grad(p[AB], x, y - 1, z), grad(p[BB], x - 1, y - 1, z))),
+              lerp(u, grad3d(p[AA], x, y, z), grad3d(p[BA], x - 1, y, z)),
+              lerp(u, grad3d(p[AB], x, y - 1, z), grad3d(p[BB], x - 1, y - 1, z))),
          lerp(v,                                 //
               lerp(u,                            //
-                   grad(p[AA + 1], x, y, z - 1), //
-                   grad(p[BA + 1], x - 1, y, z - 1)),
+                   grad3d(p[AA + 1], x, y, z - 1), //
+                   grad3d(p[BA + 1], x - 1, y, z - 1)),
               lerp(u, //
-                   grad(p[AB + 1], x, y - 1, z - 1),
-                   grad(p[BB + 1], x - 1, y - 1, z - 1))));
-  return (res + 1.0) / 2.0;
+                   grad3d(p[AB + 1], x, y - 1, z - 1),
+                   grad3d(p[BB + 1], x - 1, y - 1, z - 1))));
+  return (res + 1.0) / 2.0;//[0~1]
+}
+
+double
+PerlinNoise::noise2d(double x, double y)
+{
+  // Find the unit cube that contains the point
+  int X = (int)floor(x) & 255;
+  int Y = (int)floor(y) & 255;
+
+  // Find relative x, y,z of point in cube
+  x -= floor(x);
+  y -= floor(y);
+
+  // Compute fade curves for each of x, y, z
+  double u = fade(x);
+  double v = fade(y);
+
+  // Hash coordinates of the 8 cube corners
+  int aa = p[p[X] + Y];
+  int ab = p[p[X] + Y + 1];
+  int ba = p[p[X + 1] + Y];
+  int bb = p[p[X + 1] + Y + 1];
+
+  // Add blended results from 8 corners of cube
+  double res = lerp(v,
+    lerp(u,grad2d(aa,x,y),grad2d(ba,x-1,y)),
+    lerp(u,grad2d(ab,x,y-1),grad2d(bb,x-1,y-1)));
+  return (res / 1.5);//[-1~1]
 }
 
 double
@@ -114,10 +142,35 @@ PerlinNoise::lerp(double t, double a, double b)
 }
 
 double
-PerlinNoise::grad(int hash, double x, double y, double z)
+PerlinNoise::grad3d(int hash, double x, double y, double z)
 {
   int h = hash & 15;
   // Convert lower 4 bits of hash into 12 gradient directions
   double u = h < 8 ? x : y, v = h < 4 ? y : h == 12 || h == 14 ? x : z;
   return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+double
+PerlinNoise::grad2d(int hash, double x, double y)
+{
+  int  h = hash & 7;
+  switch (h){
+    case 0:
+      return x + 2*y;
+    case 1:
+      return 2*x + y;
+    case 2:
+      return -x + 2*y;
+    case 3:
+      return -2*x + y;
+    case 4:
+      return -x - 2*y;
+    case 5:
+      return -2*x - y;
+    case 6:
+      return x - 2*y;
+    case 7:
+      return 2*x - y;
+  }
+  return -y;
 }

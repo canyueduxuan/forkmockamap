@@ -6,6 +6,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/common/transforms.h>
 
 namespace mocka {
 
@@ -44,6 +46,10 @@ private:
   void recursiveDivision(int xl, int xh, int yl, int yh, Eigen::MatrixXi &maze);
   void recursizeDivisionMaze(Eigen::MatrixXi &maze);
   void optimizeMap();
+  void forest();
+  void generatePoissonPoints(float map_width, float map_height, float dist, std::vector<Eigen::Vector2f> &positions);
+  void scaleAndTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float scale_factor, Eigen::Vector2f position, Eigen::Matrix3f &rotation);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr generateGround(const BasicInfo &info, float hight = 0);
 };
 
 class MazePoint {

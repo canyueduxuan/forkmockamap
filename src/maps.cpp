@@ -130,7 +130,7 @@ Maps::perlin3D()
         {
           int    dfv = pow(2, it);
           double ta  = attenuation / it;
-          tnoise += ta * noise.noise(dfv * i * complexity,
+          tnoise += ta * noise.noise3d(dfv * i * complexity,
                                      dfv * j * complexity,
                                      dfv * k * complexity);
         }
@@ -155,7 +155,7 @@ Maps::perlin3D()
         {
           int    dfv = pow(2, it);
           double ta  = attenuation / it;
-          tnoise += ta * noise.noise(dfv * i * complexity,
+          tnoise += ta * noise.noise3d(dfv * i * complexity,
                                      dfv * j * complexity,
                                      dfv * k * complexity);
         }
@@ -712,6 +712,9 @@ Maps::generate(int type)
       std::srand(info.seed);
       Maze3DGen();
       break;
+    case 5:
+      forest();
+      break;
   }
 }
 
@@ -892,3 +895,139 @@ Maps::Maze3DGen()
   info.cloud->points.resize(info.cloud->width * info.cloud->height);
   pcl2ros();
 }
+
+/*------------------------------------forest-------------------------------------*/
+
+void
+Maps::forest()
+{
+  std::string tree_file;
+  double tree_density;
+  info.nh_private->param("tree_file", tree_file, std::string(""));
+  info.nh_private->param("tree_density", tree_density, 5.0);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud = generateGround(info);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr tree_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  
+  
+  if (pcl::io::loadPLYFile(tree_file, *tree_cloud) == -1)
+  {
+    ROS_ERROR("Error: Cannot read the tree PLY file. Please check the config.yaml.");
+    return;
+  }
+  
+    // 生成树的泊松分布位置
+  std::vector<Eigen::Vector2f> positions;
+  generatePoissonPoints(info.sizeX / info.scale, info.sizeY / info.scale, tree_density, positions);
+
+  // 生成森林点云
+  pcl::PointCloud<pcl::PointXYZ>::Ptr forest_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  std::default_random_engine eng(info.seed);
+  std::uniform_real_distribution<float> scale_dist(0.5f, 1.0f);
+  std::uniform_real_distribution<float> random_angle(0.0f, 1.0f);
+
+  for (const auto &pos : positions)
+  {
+    float scale_factor = scale_dist(eng);
+
+    float roll = random_angle(eng) * 10.0f * M_PI / 180.0f;  // 0-10度的 roll 角
+    float pitch = random_angle(eng) * 10.0f * M_PI / 180.0f; // 0-10度的 pitch 角
+    float yaw = random_angle(eng) * 360.0f * M_PI / 180.0f;  // 0-360度的 yaw 角
+
+    Eigen::Matrix3f rotation;
+    rotation = Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(pitch, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX());
+    pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_tree(new pcl::PointCloud<pcl::PointXYZ>(*tree_cloud));
+    scaleAndTranslateCloud(transformed_tree, scale_factor, pos, rotation);
+    *info.cloud += *transformed_tree;
+  }
+
+  *info.cloud += *tree_cloud;
+  *info.cloud += *ground_cloud;
+  info.cloud->width = info.cloud->points.size();
+  info.cloud->height = 1;
+  pcl2ros();
+
+}
+
+void Maps::generatePoissonPoints(float map_width, float map_height, float dist, std::vector<Eigen::Vector2f> &positions)
+{
+  float x_offset = map_width / 2.0f;
+  float y_offset = map_height / 2.0f;
+  
+  int rows = static_cast<int>(map_width / dist);
+  int cols = static_cast<int>(map_height / dist);
+
+  std::default_random_engine eng(info.seed);
+  std::uniform_real_distribution<float> offset_dist(0.0f, dist);
+
+  for (int i = 0; i < rows; ++i)
+  {
+    for (int j = 0; j < cols; ++j)
+    {
+      float x = i * dist + offset_dist(eng) - x_offset;
+      float y = j * dist + offset_dist(eng) - y_offset;
+      positions.emplace_back(x, y);
+    }
+  }
+}
+
+void Maps::scaleAndTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float scale_factor, Eigen::Vector2f position, Eigen::Matrix3f &rotation)
+{
+  Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+  transform.translation() << position.x(), position.y(), 0.0f;
+  transform.linear() = rotation * scale_factor;
+  pcl::transformPointCloud(*cloud, *cloud, transform);
+}
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr Maps::generateGround(const BasicInfo &info, float hight)
+{
+  pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  bool flat_ground;
+  info.nh_private->param("flat_ground", flat_ground, true);
+
+  //Number of point clouds on the x and y axes
+  int nx = static_cast<int>(std::round(info.sizeX));
+  int ny = static_cast<int>(std::round(info.sizeY));
+
+  if(flat_ground)
+  {
+      for (int x = 0;x < nx;x++)
+          for (int y = 0;y < ny;y++)
+            {
+                ground_cloud->emplace_back((x - (info.sizeX / 2.0f) + 0.5f) / info.scale, 
+                (y - (info.sizeY / 2.0f) + 0.5f) / info.scale,
+                hight);
+            }
+  }
+  else
+  {
+      double amplitude,frequency;
+      bool use_random_seed;
+      info.nh_private->param("amplitude", amplitude, 0.5);
+      info.nh_private->param("frequency", frequency, 0.17);
+      info.nh_private->param("use_random_seed", use_random_seed, false);
+
+      std::vector<float> xs(nx),ys(ny);
+      PerlinNoise *noise;
+      if(use_random_seed)
+          noise = new PerlinNoise(info.seed);
+      else
+          noise = new PerlinNoise();
+
+      for (int i = 0; i < nx; i++) {
+          xs[i] = (i- (info.sizeX / 2.0f) + 0.5f) / info.scale;
+      }
+      for (int j = 0; j < ny; j++) {
+          ys[j] = (j - (info.sizeY / 2.0f) + 0.5f) / info.scale;
+      }
+      for(float y:ys)
+          for(float x:xs)
+              {
+                float z = noise->noise2d(x * static_cast<float>(frequency),y * static_cast<float>(frequency)) * static_cast<float>(amplitude);
+                ground_cloud->emplace_back(x, y, z);
+              }
+  }
+
+
+  return ground_cloud;
+}
+
