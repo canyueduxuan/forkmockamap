@@ -916,8 +916,8 @@ Maps::forest()
   }
   
     // 生成树的泊松分布位置
-  std::vector<Eigen::Vector2f> positions;
-  generatePoissonPoints(info.sizeX / info.scale, info.sizeY / info.scale, tree_density, positions);
+  std::vector<Eigen::Vector3f> positions;
+  generatePoissonPoints(info,info.sizeX / info.scale, info.sizeY / info.scale, tree_density, positions);
 
   // 生成森林点云
   pcl::PointCloud<pcl::PointXYZ>::Ptr forest_cloud(new pcl::PointCloud<pcl::PointXYZ>());
@@ -948,32 +948,62 @@ Maps::forest()
 
 }
 
-void Maps::generatePoissonPoints(float map_width, float map_height, float dist, std::vector<Eigen::Vector2f> &positions)
+void Maps::generatePoissonPoints(const BasicInfo &info,float map_width, float map_height, float dist, std::vector<Eigen::Vector3f> &positions)
 {
-  float x_offset = map_width / 2.0f;
-  float y_offset = map_height / 2.0f;
+  float x_offset = map_width / 2.0f + 0.5f / info.scale;
+  float y_offset = map_height / 2.0f + 0.5f / info.scale;
   
   int rows = static_cast<int>(map_width / dist);
   int cols = static_cast<int>(map_height / dist);
 
   std::default_random_engine eng(info.seed);
   std::uniform_real_distribution<float> offset_dist(0.0f, dist);
-
-  for (int i = 0; i < rows; ++i)
+  bool flat_ground;
+  info.nh_private->param("flat_ground", flat_ground, true);
+  if(flat_ground)
   {
-    for (int j = 0; j < cols; ++j)
-    {
-      float x = i * dist + offset_dist(eng) - x_offset;
-      float y = j * dist + offset_dist(eng) - y_offset;
-      positions.emplace_back(x, y);
-    }
+      for (int i = 0; i < rows; ++i)
+      {
+        for (int j = 0; j < cols; ++j)
+        {
+          float x = i * dist + offset_dist(eng) - x_offset;
+          float y = j * dist + offset_dist(eng) - y_offset;
+          positions.emplace_back(x, y,0);
+        }
+      }
   }
+  else
+  {
+      double amplitude,frequency;
+      bool use_random_seed;
+      info.nh_private->param("amplitude", amplitude, 0.5);
+      info.nh_private->param("frequency", frequency, 0.17);
+      info.nh_private->param("use_random_seed", use_random_seed, false);
+
+      PerlinNoise *noise;
+      if(use_random_seed)
+          noise = new PerlinNoise(info.seed);
+      else
+          noise = new PerlinNoise();
+      float x,y,z;
+      for (int i = 0; i < rows; ++i)
+      {
+        for (int j = 0; j < cols; ++j)
+        {
+          x = i * dist + offset_dist(eng) - x_offset;
+          y = j * dist + offset_dist(eng) - y_offset;
+          z = noise->noise2d(x * static_cast<float>(frequency),y * static_cast<float>(frequency)) * static_cast<float>(amplitude);
+          positions.emplace_back(x, y,z);
+        }
+      }
+  }
+
 }
 
-void Maps::scaleAndTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float scale_factor, Eigen::Vector2f position, Eigen::Matrix3f &rotation)
+void Maps::scaleAndTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float scale_factor, Eigen::Vector3f position, Eigen::Matrix3f &rotation)
 {
   Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-  transform.translation() << position.x(), position.y(), 0.0f;
+  transform.translation() << position.x(), position.y(), position.z();
   transform.linear() = rotation * scale_factor;
   pcl::transformPointCloud(*cloud, *cloud, transform);
 }

@@ -1,6 +1,6 @@
 # add a randomly generated forest
 
-![Alt text](https://github.com/canyueduxuan/mockamap/blob/my_fix/images/fe9064bb5e611c7d6b8137dfbd234d00.jpg)
+![Alt text](https://github.com/canyueduxuan/forkmockamap/blob/my_fix/images/fb20fe13-08d8-45cb-8a3d-cdadfa589f07.png)
 
 # mockamap
 a simple map generator based on ROS
