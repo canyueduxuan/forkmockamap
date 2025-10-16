@@ -1,11 +1,14 @@
-# add a randomly generated forest
-
-![Alt text](https://github.com/canyueduxuan/forkmockamap/blob/my_fix/images/fb20fe13-08d8-45cb-8a3d-cdadfa589f07.png)
-
 # mockamap
 a simple map generator based on ROS
 
 demo cases:
+* octave perlin2d noise *(added by me)*
+
+![Alt text](https://github.com/canyueduxuan/forkmockamap/blob/my_fix/images/perlin2d.jpg)
+
+* randomly generated forest(ocatave perlin2d noise) *(added by me)*
+
+![Alt text](https://github.com/canyueduxuan/forkmockamap/blob/my_fix/images/forest.jpg)
 
 * perlin3d map
 

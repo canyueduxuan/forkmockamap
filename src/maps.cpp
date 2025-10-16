@@ -715,6 +715,9 @@ Maps::generate(int type)
     case 5:
       forest();
       break;
+    case 6:
+      perlin2D();
+      break;
   }
 }
 
@@ -905,7 +908,7 @@ Maps::forest()
   double tree_density;
   info.nh_private->param("tree_file", tree_file, std::string(""));
   info.nh_private->param("tree_density", tree_density, 5.0);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud = generateGround(info);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud = generateGround();
   pcl::PointCloud<pcl::PointXYZ>::Ptr tree_cloud(new pcl::PointCloud<pcl::PointXYZ>());
   
   
@@ -959,7 +962,7 @@ void Maps::generatePoissonPoints(const BasicInfo &info,float map_width, float ma
   std::default_random_engine eng(info.seed);
   std::uniform_real_distribution<float> offset_dist(0.0f, dist);
   bool flat_ground;
-  info.nh_private->param("flat_ground", flat_ground, true);
+  info.nh_private->param("flat_ground", flat_ground, false);
   if(flat_ground)
   {
       for (int i = 0; i < rows; ++i)
@@ -974,8 +977,10 @@ void Maps::generatePoissonPoints(const BasicInfo &info,float map_width, float ma
   }
   else
   {
+      int octaves;
       double amplitude,frequency;
       bool use_random_seed;
+      info.nh_private->param("octaves", octaves, 2);
       info.nh_private->param("amplitude", amplitude, 0.5);
       info.nh_private->param("frequency", frequency, 0.17);
       info.nh_private->param("use_random_seed", use_random_seed, false);
@@ -992,7 +997,14 @@ void Maps::generatePoissonPoints(const BasicInfo &info,float map_width, float ma
         {
           x = i * dist + offset_dist(eng) - x_offset;
           y = j * dist + offset_dist(eng) - y_offset;
-          z = noise->noise2d(x * static_cast<float>(frequency),y * static_cast<float>(frequency)) * static_cast<float>(amplitude);
+          float z = 0.0f;
+          float total_amplitude = 0.0f;
+          for(int i = 0;i < octaves;i++)
+          {
+            z += static_cast<float>(std::pow(0.5f,i)) * noise->noise2d(x * frequency * static_cast<float>(std::pow(2.0f,i)),y * frequency * static_cast<float>(std::pow(2.0f,i)));
+            total_amplitude += static_cast<float>(std::pow(0.5f,i));
+          }
+          z = z / total_amplitude * amplitude;
           positions.emplace_back(x, y,z);
         }
       }
@@ -1008,11 +1020,11 @@ void Maps::scaleAndTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, flo
   pcl::transformPointCloud(*cloud, *cloud, transform);
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr Maps::generateGround(const BasicInfo &info, float hight)
+pcl::PointCloud<pcl::PointXYZ>::Ptr Maps::generateGround(float hight)
 {
   pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>());
   bool flat_ground;
-  info.nh_private->param("flat_ground", flat_ground, true);
+  info.nh_private->param("flat_ground", flat_ground, false);
 
   //Number of point clouds on the x and y axes
   int nx = static_cast<int>(std::round(info.sizeX));
@@ -1030,8 +1042,10 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr Maps::generateGround(const BasicInfo &info, 
   }
   else
   {
+      int octaves;
       double amplitude,frequency;
       bool use_random_seed;
+      info.nh_private->param("octaves", octaves, 2);
       info.nh_private->param("amplitude", amplitude, 0.5);
       info.nh_private->param("frequency", frequency, 0.17);
       info.nh_private->param("use_random_seed", use_random_seed, false);
@@ -1052,7 +1066,14 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr Maps::generateGround(const BasicInfo &info, 
       for(float y:ys)
           for(float x:xs)
               {
-                float z = noise->noise2d(x * static_cast<float>(frequency),y * static_cast<float>(frequency)) * static_cast<float>(amplitude);
+                float z = 0.0f;
+                float total_amplitude = 0.0f;
+                for(int i = 0;i < octaves;i++)
+                {
+                  z += static_cast<float>(std::pow(0.5f,i)) * noise->noise2d(x * frequency * static_cast<float>(std::pow(2.0f,i)),y * frequency * static_cast<float>(std::pow(2.0f,i)));
+                  total_amplitude += static_cast<float>(std::pow(0.5f,i));
+                }
+                z = z / total_amplitude * amplitude;
                 ground_cloud->emplace_back(x, y, z);
               }
   }
@@ -1061,3 +1082,12 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr Maps::generateGround(const BasicInfo &info, 
   return ground_cloud;
 }
 
+/*------------------------------------perlin2d terrain generate-------------------------------------*/
+void Maps::perlin2D()
+{
+  pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud = generateGround();
+  *info.cloud += *ground_cloud;
+  info.cloud->width = info.cloud->points.size();
+  info.cloud->height = 1;
+  pcl2ros();
+}

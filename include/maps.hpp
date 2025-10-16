@@ -47,9 +47,10 @@ private:
   void recursizeDivisionMaze(Eigen::MatrixXi &maze);
   void optimizeMap();
   void forest();
+  void perlin2D();
   void generatePoissonPoints(const BasicInfo &info,float map_width, float map_height, float dist, std::vector<Eigen::Vector3f> &positions);
   void scaleAndTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float scale_factor, Eigen::Vector3f position, Eigen::Matrix3f &rotation);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr generateGround(const BasicInfo &info, float hight = 0);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr generateGround(float hight = 0);
 };
 
 class MazePoint {

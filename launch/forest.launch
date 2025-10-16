@@ -19,8 +19,9 @@
   <param name="flat_ground"    type="bool" value="false"/>
   <!-- if flat_ground == flase-->
   <!-- generate perlin noise terrain-->
-  <param name="amplitude"    type="double" value="0.5"/>
-  <param name="frequency"    type="double" value="0.17"/>
+  <param name="amplitude"    type="double" value="5.0"/>
+  <param name="frequency"    type="double" value="0.05"/>
+  <param name="octaves"    type="int" value="3"/>
 
     </node>
   <node pkg="rviz" type="rviz" name="rviz" args="-d $(find mockamap)/config/forest.rviz" output="screen"/>
